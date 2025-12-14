@@ -4,3 +4,4 @@ mtcnn
 numpy==1.24.4
 PyQt5
 scipy
+openpyxl
