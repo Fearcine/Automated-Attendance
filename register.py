@@ -1,59 +1,74 @@
+# register.py — clean face registration (GUI-safe)
+
 import cv2
+import numpy as np
 from deepface import DeepFace
 from mtcnn import MTCNN
 from db import init_db, save_person
 
-# init db + detector
-init_db()
-detector = MTCNN()
 
-def extract_face(img):
-    res = detector.detect_faces(img)
-    if not res:
-        return None
-    x, y, w, h = res[0]['box']
-    x, y = max(0, x), max(0, y)
-    return img[y:y+h, x:x+w]
+def run_register():
+    init_db()
+    detector = MTCNN()
 
-def get_embedding(face):
-    reps = DeepFace.represent(face, model_name="Facenet", enforce_detection=False)
-    # DeepFace can return:
-    # - [ { "embedding": [...] } ]
-    # - [0.1, 0.2, ...]  (direct vector)
-    if isinstance(reps, list):
-        if len(reps) > 0 and isinstance(reps[0], dict) and "embedding" in reps[0]:
-            return reps[0]["embedding"]
-        else:
-            return reps  # already a list of floats
-    if isinstance(reps, dict) and "embedding" in reps:
-        return reps["embedding"]
-    return reps
+    name = input("Enter name to register: ").strip()
+    if not name:
+        print("Invalid name.")
+        return
 
-name = input("Name to register: ").strip()
-cap = cv2.VideoCapture(0)
-print("Look at the camera. Press SPACE to capture. ESC to quit.")
+    cap = cv2.VideoCapture(0)
+    if not cap.isOpened():
+        print("Camera not found.")
+        return
 
-while True:
-    ret, frame = cap.read()
-    if not ret:
-        break
+    print("Look at camera. Press S to save. ESC to cancel.")
 
-    cv2.imshow("Register - press SPACE", frame)
-    k = cv2.waitKey(1)
+    def extract_face(img):
+        res = detector.detect_faces(img)
+        if not res:
+            return None
+        x, y, w, h = res[0]["box"]
+        x, y = max(0, x), max(0, y)
+        return img[y:y+h, x:x+w]
 
-    if k % 256 == 27:      # ESC
-        break
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
 
-    if k % 256 == 32:      # SPACE
-        face = extract_face(frame)
-        if face is None:
-            print("No face found. Try again.")
-            continue
+        cv2.imshow("Register Face (S = Save, ESC = Exit)", frame)
+        key = cv2.waitKey(1) & 0xFF
 
-        emb = get_embedding(face)
-        save_person(name, emb)
-        print(f"Saved {name}.")
-        break
+        if key == 27:  # ESC
+            break
 
-cap.release()
-cv2.destroyAllWindows()
+        if key == ord("s"):
+            face = extract_face(frame)
+            if face is None or face.size == 0:
+                print("No face detected. Try again.")
+                continue
+
+            rep = DeepFace.represent(
+                face,
+                model_name="Facenet",
+                enforce_detection=False
+            )
+
+            if isinstance(rep, list):
+                if isinstance(rep[0], dict):
+                    emb = rep[0]["embedding"]
+                else:
+                    emb = rep
+            elif isinstance(rep, dict):
+                emb = rep["embedding"]
+            else:
+                emb = rep
+
+            emb = np.array(emb, dtype=float)
+            save_person(name, emb.tolist())
+            print(f"Saved face for {name}.")
+            break
+
+    cap.release()
+    cv2.destroyAllWindows()
+

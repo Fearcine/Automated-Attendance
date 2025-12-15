@@ -14,7 +14,7 @@ def run_recognition():
     FRAME_SKIP = 5          # recognize every N frames
     MAX_FACES = 4
     SIMILARITY_THRESHOLD = 0.45
-    MARK_COOLDOWN = 60      # seconds
+    MARK_COOLDOWN = 3600     # seconds
     SCALE = 0.5             # downscale for speed
     # ==================
 
